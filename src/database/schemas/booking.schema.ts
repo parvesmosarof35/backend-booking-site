@@ -13,10 +13,10 @@ export enum BookingStatus {
 
 @Schema({ timestamps: true })
 export class Booking {
-  @Prop({ required: true, trim: true })
+  @Prop({ default: 'Guest', trim: true })
   customerName: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ default: '', trim: true })
   whatsapp: string;
 
   @Prop({ default: '' })
