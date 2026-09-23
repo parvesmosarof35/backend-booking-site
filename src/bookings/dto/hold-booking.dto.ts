@@ -18,6 +18,11 @@ export class HoldBookingDto {
   @Min(1)
   guestCount: number;
 
+  @ApiPropertyOptional({ example: '65f1234567890abcdef12345' })
+  @IsOptional()
+  @IsString()
+  tableId?: string;
+
   @ApiPropertyOptional({ example: 'Indoor' })
   @IsOptional()
   @IsString()

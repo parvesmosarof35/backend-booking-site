@@ -83,38 +83,57 @@ export class BookingsService {
 
     const bookedTableIds = bookedTables.map((b) => b.tableId.toString());
 
-    // Auto-assign algorithm: find smallest table that fits
-    const query: any = {
-      capacity: { $gte: guestCount },
-      status: { $ne: TableStatus.MAINTENANCE },
-      _id: { $nin: bookedTableIds.map((id) => new Types.ObjectId(id)) },
-    };
+    let assignedTable: TableDocument;
 
-    if (preferredZone) {
-      query.zone = preferredZone;
-    }
+    if (dto.tableId) {
+      if (bookedTableIds.includes(dto.tableId)) {
+        throw new ConflictException(
+          'Selected table is already booked or on hold for this time slot',
+        );
+      }
+      assignedTable = await this.tableModel.findById(dto.tableId).exec();
+      if (!assignedTable || assignedTable.status === TableStatus.MAINTENANCE) {
+        throw new BadRequestException('Selected table is currently under maintenance');
+      }
+      if (assignedTable.capacity < guestCount) {
+        throw new BadRequestException(
+          `Selected table holds ${assignedTable.capacity} seats, but you have ${guestCount} guests`,
+        );
+      }
+    } else {
+      // Auto-assign algorithm: find smallest table that fits
+      const query: any = {
+        capacity: { $gte: guestCount },
+        status: { $ne: TableStatus.MAINTENANCE },
+        _id: { $nin: bookedTableIds.map((id) => new Types.ObjectId(id)) },
+      };
 
-    // Try first with preferred zone, if not found try any zone
-    let candidateTables = await this.tableModel
-      .find(query)
-      .sort({ capacity: 1 })
-      .exec();
+      if (preferredZone) {
+        query.zone = preferredZone;
+      }
 
-    if (candidateTables.length === 0 && preferredZone) {
-      delete query.zone;
-      candidateTables = await this.tableModel
+      // Try first with preferred zone, if not found try any zone
+      let candidateTables = await this.tableModel
         .find(query)
         .sort({ capacity: 1 })
         .exec();
-    }
 
-    if (candidateTables.length === 0) {
-      throw new ConflictException(
-        `No available table found for ${guestCount} guests at this time slot`,
-      );
-    }
+      if (candidateTables.length === 0 && preferredZone) {
+        delete query.zone;
+        candidateTables = await this.tableModel
+          .find(query)
+          .sort({ capacity: 1 })
+          .exec();
+      }
 
-    const assignedTable = candidateTables[0]; // Smallest fitting table
+      if (candidateTables.length === 0) {
+        throw new ConflictException(
+          `No available table found for ${guestCount} guests at this time slot`,
+        );
+      }
+
+      assignedTable = candidateTables[0];
+    }
 
     // 5-minute hold
     const holdExpiresAt = new Date(now.getTime() + 5 * 60 * 1000);
@@ -316,5 +335,48 @@ export class BookingsService {
     );
 
     return results;
+  }
+
+  async getFloorPlanStatus(date: string, slotId: string, guestCount: number = 2) {
+    const now = new Date();
+    const tables = await this.tableModel.find().sort({ tableNumber: 1 }).exec();
+
+    const activeBookings = await this.bookingModel.find({
+      date,
+      slotId: new Types.ObjectId(slotId),
+      $or: [
+        { status: { $in: [BookingStatus.CONFIRMED, BookingStatus.SEATED] } },
+        { status: BookingStatus.HELD, holdExpiresAt: { $gt: now } },
+      ],
+    }).select('tableId status holdExpiresAt').exec();
+
+    const bookingMap = new Map<string, any>();
+    activeBookings.forEach((b) => bookingMap.set(b.tableId.toString(), b));
+
+    return tables.map((t) => {
+      const activeBooking = bookingMap.get(t._id.toString());
+      let seatStatus = 'available';
+
+      if (t.status === TableStatus.MAINTENANCE) {
+        seatStatus = 'maintenance';
+      } else if (activeBooking) {
+        seatStatus = activeBooking.status === BookingStatus.HELD ? 'held' : 'booked';
+      } else if (t.capacity < guestCount) {
+        seatStatus = 'too_small';
+      }
+
+      return {
+        _id: t._id,
+        tableNumber: t.tableNumber,
+        capacity: t.capacity,
+        type: t.type,
+        zone: t.zone,
+        positionX: t.positionX,
+        positionY: t.positionY,
+        shape: t.shape,
+        status: seatStatus,
+        isSelectable: seatStatus === 'available',
+      };
+    });
   }
 }

@@ -56,6 +56,23 @@ export class BookingsController {
     );
   }
 
+  @ApiOperation({ summary: 'Get interactive floor plan tables with live status for slot (Public)' })
+  @ApiQuery({ name: 'date', example: '2026-09-25' })
+  @ApiQuery({ name: 'slotId', example: '65f1234567890abcdef12345' })
+  @ApiQuery({ name: 'guestCount', example: 2 })
+  @Get('floor-plan-status')
+  getFloorPlanStatus(
+    @Query('date') date: string,
+    @Query('slotId') slotId: string,
+    @Query('guestCount') guestCount?: string,
+  ) {
+    return this.bookingsService.getFloorPlanStatus(
+      date || new Date().toISOString().split('T')[0],
+      slotId,
+      parseInt(guestCount || '2', 10),
+    );
+  }
+
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.STAFF)
