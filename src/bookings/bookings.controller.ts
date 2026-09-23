@@ -73,6 +73,12 @@ export class BookingsController {
     );
   }
 
+  @ApiOperation({ summary: 'Get booking details by reference code (Public Tracking)' })
+  @Get('reference/:ref')
+  findByReference(@Param('ref') ref: string) {
+    return this.bookingsService.findByReference(ref);
+  }
+
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.STAFF)
