@@ -49,7 +49,7 @@ export class MenuService implements OnModuleInit {
           description: 'Handcrafted egg fettuccine tossed in white truffle oil, wild porcini mushrooms, and aged Parmigiano Reggiano.',
           price: 950,
           category: 'Pasta',
-          imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281292?w=800&auto=format&fit=crop&q=80',
+          imageUrl: 'https://images.unsplash.com/photo-1608897013039-887f21d8c804?w=800&auto=format&fit=crop&q=80',
           isAvailable: true,
           isFeatured: true,
           viewCount: 120,
@@ -103,6 +103,24 @@ export class MenuService implements OnModuleInit {
 
       await this.menuItemModel.insertMany(initialItems);
       this.logger.log('Initial restaurant menu items seeded');
+    } else {
+      // Ensure any existing record with the old/broken image URL is updated
+      await this.menuItemModel.updateMany(
+        {
+          name: 'Truffle Mushroom Fettuccine',
+          $or: [
+            { imageUrl: { $regex: 'photo-1621996346565' } },
+            { imageUrl: { $exists: false } },
+            { imageUrl: '' },
+          ],
+        },
+        {
+          $set: {
+            imageUrl:
+              'https://images.unsplash.com/photo-1608897013039-887f21d8c804?w=800&auto=format&fit=crop&q=80',
+          },
+        },
+      );
     }
   }
 
